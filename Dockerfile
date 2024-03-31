@@ -40,10 +40,6 @@ RUN sed -i 's/e747180d728fa4e4418c465828384333/# e747180d728fa4e4418c46582838433
 RUN sed -i 's/download_model("hand"/# download_model("hand"/g' /openpose/CMakeLists.txt
 RUN sed -i 's/a82cfc3fea7c62f159e11bd3674c1531/# a82cfc3fea7c62f159e11bd3674c1531/g' /openpose/CMakeLists.txt
 
-#get openpose
-#WORKDIR /openpose
-#COPY . .
-
 #build it
 WORKDIR /openpose/build
 RUN cmake -DBUILD_PYTHON=ON -DGPU_MODE=CPU_ONLY -DOWNLOAD_HAND_MODEL=OFF -DOWNLOAD_FACE_MODEL=OFF .. && make -j `nproc`
