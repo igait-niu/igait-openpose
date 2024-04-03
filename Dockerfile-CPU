@@ -1,15 +1,15 @@
 # https://hub.docker.com/r/cwaffles/openpose
-FROM nvidia/cuda:12.0.0-cudnn8-runtime-ubuntu18.04
+FROM ubuntu:focal
 
 #get deps
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     python3-dev python3-pip python3-setuptools git g++ wget make libprotobuf-dev protobuf-compiler libopencv-dev \
-    libgoogle-glog-dev libboost-all-dev caffe-cuda libhdf5-dev libatlas-base-dev lsb-release
+    libgoogle-glog-dev libboost-all-dev caffe-cpu libhdf5-dev libatlas-base-dev
 
 #for python api
 RUN pip3 install --upgrade pip
-RUN pip3 install numpy opencv-python --verbose
+RUN pip3 install numpy opencv-python 
 
 #replace cmake as old version has CUDA variable bugs
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.16.0/cmake-3.16.0-Linux-x86_64.tar.gz && \
@@ -20,15 +20,6 @@ ENV PATH="/opt/cmake-3.16.0-Linux-x86_64/bin:${PATH}"
 #get openpose
 RUN git clone https://github.com/KWNahyun/openpose.git
 WORKDIR /openpose
-
-#double install CUDA/cuDNN
-#RUN sed -i 's/sudo//g' scripts/ubuntu/install_cuda.sh
-#RUN sed -i 's/ubuntu2004.pin/ubuntu1804.pin/g' scripts/ubuntu/install_cuda.sh
-#RUN cat scripts/ubuntu/install_cuda.sh
-#RUN scripts/ubuntu/install_cuda.sh
-#RUN echo ":3"
-
-#get models from altenate link
 RUN    cd /openpose/models/pose/body_25 && wget -O pose_iter_584000.caffemodel -c https://www.dropbox.com/s/3x0xambj2rkyrap/pose_iter_584000.caffemodel?dl=0
 # pose_iter_116000.caffemodel
 RUN    cd /openpose/models/face && wget -O pose_iter_116000.caffemodel-c https://www.dropbox.com/s/d08srojpvwnk252/pose_iter_116000.caffemodel?dl=0
@@ -51,4 +42,4 @@ RUN sed -i 's/a82cfc3fea7c62f159e11bd3674c1531/# a82cfc3fea7c62f159e11bd3674c153
 
 #build it
 WORKDIR /openpose/build
-RUN cmake -DBUILD_PYTHON=ON -DGPU_MODE=CUDA -DOWNLOAD_HAND_MODEL=OFF -DOWNLOAD_FACE_MODEL=OFF .. && make -j `nproc`
+RUN cmake -DBUILD_PYTHON=ON -DGPU_MODE=CPU_ONLY -DOWNLOAD_HAND_MODEL=OFF -DOWNLOAD_FACE_MODEL=OFF .. && make -j `nproc`
