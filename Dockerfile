@@ -49,6 +49,13 @@ RUN sed -i 's/e747180d728fa4e4418c465828384333/# e747180d728fa4e4418c46582838433
 RUN sed -i 's/download_model("hand"/# download_model("hand"/g' /openpose/CMakeLists.txt
 RUN sed -i 's/a82cfc3fea7c62f159e11bd3674c1531/# a82cfc3fea7c62f159e11bd3674c1531/g' /openpose/CMakeLists.txt
 
+RUN apt-get install -y nvidia-cuda-toolkit
+RUN echo ":3" & apt list --installed
+RUN dpkg -L cuda-cudart-12-0
+RUN ln -s /usr/local/cuda-12.0 /usr/local/cuda
+RUN cd /usr/local/libcudnn8 & ls | tee logs.txt
+RUN export cuDNN_HOME=/usr/local/libcudnn8
+
 #build it
 WORKDIR /openpose/build
-RUN cmake -DBUILD_PYTHON=ON -DGPU_MODE=CUDA -DOWNLOAD_HAND_MODEL=OFF -DOWNLOAD_FACE_MODEL=OFF .. && make -j `nproc`
+RUN cmake -DBUILD_PYTHON=ON -DGPU_MODE=CUDA -DUSE_CUDNN=OFF -DOWNLOAD_HAND_MODEL=OFF -DOWNLOAD_FACE_MODEL=OFF .. && make -j `nproc`
