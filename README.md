@@ -34,3 +34,5 @@ The above with some removed dependencies for GPU support, namely the usage of `c
   ![image](https://github.com/hiibolt/igait-openpose/assets/91273156/1cf5832e-75ba-4062-a776-66ee32ec6f3d)
 - With the above example command, a body pose skeleton should be mapped onto each output image
   ![image](https://github.com/hiibolt/igait-openpose/assets/91273156/abffec80-1ff5-49e1-bc9a-465bdcabbd03)
+
+Developed by @hiibolt on GitHub
