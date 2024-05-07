@@ -8,7 +8,7 @@ The above with some removed dependencies for GPU support, namely the usage of `c
 ## Example Usage
 - Start the Docker Container: (for the CUDA version, you may need to pass your GPUs with the `--gpus` flag)
 
-  `docker run -t -d --name openpose ghcr.io/hiibolt/igait-openpose:latest`
+  `docker run -t -d --name openpose ghcr.io/igait-niu/igait-openpose:latest`
 - Open a bash shell in the container:
 
   `docker exec -it openpose bash`
