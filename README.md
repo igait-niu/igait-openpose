@@ -6,21 +6,22 @@ CMake also seems to have issues with building to support CMake, which the work h
 The above with some removed dependencies for GPU support, namely the usage of `caffe-cpu` instead of libcaffe-cuda-dev.
 
 ## Example Usage
-- Start the Docker Container: (for the CUDA version, you may need to pass your GPUs with the `--gpus` flag)
+Pull it in the following manner:
+```bash
+docker pull ghcr.io/hiibolt/igait-openpose
+```
 
-  `docker run -t -d --name openpose ghcr.io/igait-niu/igait-openpose:latest`
-- Open a bash shell in the container:
+Then, start it with the following command:
+```bash
+docker run -it --rm --gpus all --security-opt=label=disable ghcr.io/hiibolt/igait-openpose
+```
 
-  `docker exec -it openpose bash`
-- Run an inference:
+Run an example inference:
+```bash
+./build/examples/openpose/openpose.bin --image_dir /openpose/examples/media --display 0 --write_images /output_images
+```
 
-  `./build/examples/openpose/openpose.bin --image_dir /openpose/examples/media --display 0 --write_images /output_images`
-- Exit the container:
-
-  `exit`
-- Copy the output images to your current directory:
-
-  `docker cp openpose:/output_images ./output_images`
+Please note that in order for this to work, you will need to have the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed.
 
 ## Expected Behaviour
 ### CPU
