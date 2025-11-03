@@ -1,0 +1,23 @@
+# Build artifacts
+*.log
+/build-temp-*
+
+# Singularity cache
+.singularity-cache/
+.singularity-tmp/
+
+# Old Docker files (we use Singularity now)
+Dockerfile*
+
+# OpenPose build directory (gets recreated during build)
+openpose/build/
+
+/build*
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# Images
+*.sif

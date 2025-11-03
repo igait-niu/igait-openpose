@@ -1,0 +1,66 @@
+Bootstrap: localimage
+From: openpose-base.sif
+
+%files
+    ./openpose /openpose
+
+%post
+    echo "Installing additional build dependencies..."
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libc6-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+    echo "Verifying openpose directory..."
+    ls -la /openpose || (echo "ERROR: openpose directory not found!" && exit 1)
+
+    echo "Downloading OpenPose models..."
+    cd /openpose/models/pose/body_25 && wget -q -O pose_iter_584000.caffemodel -c https://www.dropbox.com/s/3x0xambj2rkyrap/pose_iter_584000.caffemodel?dl=0
+    cd /openpose/models/face && wget -q -O pose_iter_116000.caffemodel -c https://www.dropbox.com/s/d08srojpvwnk252/pose_iter_116000.caffemodel?dl=0
+    cd /openpose/models/hand && wget -q -O pose_iter_102000.caffemodel -c https://www.dropbox.com/s/gqgsme6sgoo0zxf/pose_iter_102000.caffemodel?dl=0
+
+    echo "Patching OpenPose to skip model downloads..."
+    sed -i 's/executeShInItsFolder "getModels.sh"/# executeShInItsFolder "getModels.sh"/g' /openpose/scripts/ubuntu/install_openpose_JetsonTX2_JetPack3.1.sh
+    sed -i 's/executeShInItsFolder "getModels.sh"/# executeShInItsFolder "getModels.sh"/g' /openpose/scripts/ubuntu/install_openpose_JetsonTX2_JetPack3.3.sh
+    sed -i 's/download_model("BODY_25"/# download_model("BODY_25"/g' /openpose/CMakeLists.txt
+    sed -i 's/78287B57CF85FA89C03F1393D368E5B7/# 78287B57CF85FA89C03F1393D368E5B7/g' /openpose/CMakeLists.txt
+    sed -i 's/download_model("body (COCO)"/# download_model("body (COCO)"/g' /openpose/CMakeLists.txt
+    sed -i 's/5156d31f670511fce9b4e28b403f2939/# 5156d31f670511fce9b4e28b403f2939/g' /openpose/CMakeLists.txt
+    sed -i 's/download_model("body (MPI)"/# download_model("body (MPI)"/g' /openpose/CMakeLists.txt
+    sed -i 's/2ca0990c7562bd7ae03f3f54afa96e00/# 2ca0990c7562bd7ae03f3f54afa96e00/g' /openpose/CMakeLists.txt
+    sed -i 's/download_model("face"/# download_model("face"/g' /openpose/CMakeLists.txt
+    sed -i 's/e747180d728fa4e4418c465828384333/# e747180d728fa4e4418c465828384333/g' /openpose/CMakeLists.txt
+    sed -i 's/download_model("hand"/# download_model("hand"/g' /openpose/CMakeLists.txt
+    sed -i 's/a82cfc3fea7c62f159e11bd3674c1531/# a82cfc3fea7c62f159e11bd3674c1531/g' /openpose/CMakeLists.txt
+
+    echo "Disabling git submodule auto-cloning (we've already patched submodules locally)..."
+    # Patch OpenPose's CMakeLists.txt to skip the submodule cloning commands
+    sed -i 's/execute_process(COMMAND git submodule update --init/#execute_process(COMMAND git submodule update --init/g' /openpose/CMakeLists.txt
+    
+    # Also patch the Python build section
+    sed -i 's/execute_process(COMMAND git submodule update --init/#execute_process(COMMAND git submodule update --init/g' /openpose/CMakeLists.txt
+
+    echo "Building OpenPose (all submodules already patched locally)..."
+    cd /openpose
+    mkdir -p build
+    cd build
+    
+    # Create a temp directory on the larger filesystem for CUDA compilation
+    mkdir -p /openpose/build/cuda_tmp
+    export TMPDIR=/openpose/build/cuda_tmp
+    
+    # Build OpenPose with Python support, using fewer parallel jobs to avoid /tmp issues
+    cmake -DBUILD_PYTHON=ON .. && make -j 32
+    
+    echo "OpenPose build complete!"
+
+%environment
+    export PATH="/usr/bin:${PATH}"
+
+%runscript
+    cd /openpose
+    exec "$@"
+
+%labels
+    Author @hiibolt on GitHub
+    Version 1.0
+    Description OpenPose built on cached base image with CUDA 12 support

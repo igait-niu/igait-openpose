@@ -1,39 +1,164 @@
-# OpenPose Dockerfiles
-## CPU + Python API + CUDA + cuDNN (./Dockerfile)
-CMake also seems to have issues with building to support CMake, which the work here seems to fix - however, it targets a now depreciated version of nvidia/cuda. By changing the target from nvidia/cuda:11.4.0-cudnn8-devel-ubuntu18.04 to nvidia/cuda:11.3.1-cudnn8-devel-ubuntu18.04, it now has a functional source image.
+# OpenPose Singularity Container for iGait Pipeline
 
-## CPU + Python API (./Dockerfile-CPU)
-The above with some removed dependencies for GPU support, namely the usage of `caffe-cpu` instead of libcaffe-cuda-dev.
+This directory contains a multi-stage Singularity build for OpenPose with CUDA 12.8 support on Ubuntu 22.04.
 
-## Example Usage
-Pull it in the following manner:
+## Built Images
+
+- **`openpose-base.sif`** (6.1 GB) - Base image with CUDA 12.8, system packages, and CMake
+- **`igait-openpose.sif`** (6.7 GB) - Complete OpenPose installation with Python bindings
+
+## Quick Start
+
+The images are already built! To use OpenPose:
+
 ```bash
-docker pull ghcr.io/hiibolt/igait-openpose
+# Test GPU access
+singularity exec --nv igait-openpose.sif nvidia-smi
+
+# Run OpenPose on a video
+singularity exec --nv \
+  --bind /path/to/data:/data \
+  igait-openpose.sif \
+  /openpose/build/examples/openpose/openpose.bin \
+  --video /data/input.mp4 \
+  --write_json /data/output/
 ```
 
-Then, start it with the following command:
+## Building from Source
+
+If you need to rebuild the containers:
+
+### Prerequisites
+
+- Singularity/Apptainer installed with fakeroot support
+- NVIDIA GPU with CUDA 12.8 drivers
+- At least 20GB of free disk space
+- Network access to download packages
+
+### Step 1: Clone OpenPose and Apply Patches
+
 ```bash
-docker run -it --rm --gpus all --security-opt=label=disable ghcr.io/hiibolt/igait-openpose
+cd /lstr/sahara/zwlab/jw/igait-pipeline/igait-openpose
+
+# Initialize OpenPose submodule if not already done
+cd openpose
+git submodule update --init --recursive
+cd ..
 ```
 
-Run an example inference:
+The OpenPose source has already been patched for CUDA 12.8 compatibility:
+- ✅ CMake version requirements updated (2.8/3.0 → 3.5)
+- ✅ Old GPU architectures removed (KEPLER sm_35, sm_37)
+- ✅ Modern GPU architectures added (AMPERE sm_89, sm_90)
+
+### Step 2: Build Base Image
+
 ```bash
-./build/examples/openpose/openpose.bin --image_dir /openpose/examples/media --display 0 --write_images /output_images
+# Set cache directories to use Lustre filesystem
+export SINGULARITY_CACHEDIR=/lstr/sahara/zwlab/jw/.singularity-cache
+export SINGULARITY_TMPDIR=/lstr/sahara/zwlab/jw/.singularity-tmp
+mkdir -p "$SINGULARITY_CACHEDIR" "$SINGULARITY_TMPDIR"
+
+# Build base image (~10-15 minutes)
+singularity build --fakeroot openpose-base.sif openpose-base.def
 ```
 
-Please note that in order for this to work, you will need to have the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed.
+The base image includes:
+- NVIDIA CUDA 12.8 with cuDNN 9
+- Ubuntu 22.04 LTS
+- System packages (OpenCV, Boost, HDF5, Atlas, etc.)
+- Python 3.10 with numpy and opencv-python
+- CMake 4.1.2 from Kitware repository
 
-## Expected Behaviour
-### CPU
-- With the above example usage commands, a body pose skeleton should be mapped onto each output image
-  ![image](https://github.com/hiibolt/igait-openpose/assets/91273156/bce65308-1bc4-4ba3-bb69-3662785aec11)
-- You may expect a significantly slower experience compared to CUDA acceleration, which OpenPose will warn you of. If you intend to only use CPU, you may safely discard this error.
-### CUDA
-- Running `nvidia-smi` should display readily available GPUs.
-  ![image](https://github.com/hiibolt/igait-openpose/assets/91273156/3a1317c3-7c89-4ba8-8a82-abd8156785f5)
-- Running an inference should debug output the availability and usage of at least one GPU
-  ![image](https://github.com/hiibolt/igait-openpose/assets/91273156/1cf5832e-75ba-4062-a776-66ee32ec6f3d)
-- With the above example command, a body pose skeleton should be mapped onto each output image
-  ![image](https://github.com/hiibolt/igait-openpose/assets/91273156/abffec80-1ff5-49e1-bc9a-465bdcabbd03)
+### Step 3: Build OpenPose Image
 
-Developed by @hiibolt on GitHub
+```bash
+# Build OpenPose on top of base image (~30-45 minutes)
+singularity build --fakeroot igait-openpose.sif openpose.def
+```
+
+Or use the convenience script:
+
+```bash
+./build.sh
+```
+
+The OpenPose image includes:
+- Pre-downloaded model files (Body_25, face, hand)
+- Compiled OpenPose with CUDA 12.8 support
+- Python bindings (optional)
+- GPU architectures: Maxwell, Pascal, Volta, Turing, Ampere (sm_50 through sm_90)
+
+## Build Details
+
+### CUDA 12.8 Compatibility Patches
+
+The following patches were applied to make OpenPose compatible with CUDA 12.8:
+
+1. **CMakeLists.txt files** - Updated minimum CMake version to 3.5:
+   - `/openpose/CMakeLists.txt`
+   - `/openpose/3rdparty/caffe/CMakeLists.txt`
+   - `/openpose/3rdparty/pybind11/CMakeLists.txt`
+   - `/openpose/3rdparty/pybind11/tools/pybind11Tools.cmake`
+
+2. **CUDA Architecture Configuration** - Removed deprecated architectures:
+   - `/openpose/cmake/Cuda.cmake` - Set `KEPLER=""` (removed sm_35, sm_37)
+   - `/openpose/3rdparty/caffe/cmake/Cuda.cmake` - Set `KEPLER=""` (removed sm_35, sm_37)
+   - Added newer AMPERE architectures: `AMPERE="80 86 89 90"`
+
+3. **System Dependencies**:
+   - Added `libc6-dev` for missing system headers
+   - Added `linux-libc-dev` for kernel headers
+
+### Multi-Stage Build Benefits
+
+The multi-stage approach provides:
+- **Faster rebuilds** - Base image cached with all system packages
+- **Easier debugging** - Isolates package installation from compilation
+- **Smaller iterations** - Only rebuild OpenPose layer when source changes
+
+## Troubleshooting
+
+### CUDA Error 999
+
+If you see `Cuda check failed (999 vs. 0): unknown error`:
+- Make sure you're using `--nv` flag with singularity
+- Verify CUDA drivers are loaded: `nvidia-smi`
+- Check GPU is accessible: `singularity exec --nv igait-openpose.sif nvidia-smi`
+
+### Out of Space Errors
+
+If the build fails with disk space errors:
+- Set `SINGULARITY_TMPDIR` to a filesystem with more space
+- Clean up old build artifacts: `rm -rf /lstr/sahara/zwlab/jw/.singularity-tmp/*`
+
+### CMake Version Errors
+
+If you see `Compatibility with CMake < 3.5 has been removed`:
+- The OpenPose source may have been re-cloned
+- Re-apply the patches listed above manually
+
+## Integration with iGait Pipeline
+
+The OpenPose container is used in Stage 4 (Pose Estimation) of the iGait pipeline:
+
+```rust
+// igait-pipeline/src/stages/s4_pose_estimation.rs
+const PATH_TO_OPENPOSE_SIF: &str = "/lstr/sahara/zwlab/jw/igait-pipeline/igait-openpose/igait-openpose.sif";
+```
+
+The pipeline automatically:
+1. Binds the output directory to `/outputs` in the container
+2. Runs OpenPose with `--nv` for GPU access
+3. Processes both front and side camera views
+4. Outputs JSON keypoints and annotated videos
+
+## Authors
+
+- Built by @hiibolt with assistance from GitHub Copilot
+- Original OpenPose by CMU Perceptual Computing Lab
+- CUDA 12.8 compatibility patches applied November 2024
+
+## License
+
+OpenPose is licensed under the CMU license. See `/openpose/LICENSE` for details.
